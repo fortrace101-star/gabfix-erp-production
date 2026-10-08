@@ -1,0 +1,39 @@
+{
+  "name": "gabfix-server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon --watch . --ext ts --exec tsx index.ts",
+    "dev:nodemon": "nodemon --watch . --ext ts --exec tsx index.ts",
+    "start": "tsx index.ts",
+    "db:init": "tsx init-db.ts",
+    "db:migrate": "tsx migrate.ts",
+    "test": "node --import tsx --test test/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@types/pdfkit": "^0.17.6",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "pdfkit": "^0.20.2",
+    "pg": "^8.23.0",
+    "web-push": "^3.6.7",
+    "web-push": "^3.6.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.5.1",
+    "@types/pg": "^8.23.1",
+    "nodemon": "^3.1.14",
+    "tsx": "^4.23.13",
+    "typescript": "^5.5.3"
+  }
+}
