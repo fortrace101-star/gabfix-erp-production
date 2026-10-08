@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { ensureDatabase } from './bootstrap-db';
+import { databaseName } from './db-config';
 import { authRouter } from './routes/auth';
 import { adminRouter } from './routes/admin';
 import { customersRouter } from './routes/customers';
@@ -80,7 +81,7 @@ app.use(requestLogger());
 
 // Health stays unauthenticated (also exempted inside guard()).
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, database: process.env.PGDATABASE || 'gabfix' });
+  res.json({ ok: true, database: databaseName });
 });
 
 // Auth endpoints manage their own tokens (login/refresh are public, /me calls

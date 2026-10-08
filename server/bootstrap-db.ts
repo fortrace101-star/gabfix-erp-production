@@ -1,25 +1,22 @@
 import 'dotenv/config';
 import { Client } from 'pg';
+import { adminDatabaseLink, databaseName, databaseUrl } from './db-config';
 import { seedData, seedPortalDemo, ensureOwner, ensureStaff } from './seed-data';
 import { migrate } from './migrate';
-
-const connection = (database: string) => ({
-  host: process.env.PGHOST || 'localhost',
-  port: Number(process.env.PGPORT) || 5432,
-  user: process.env.PGUSER || 'postgres',
-  password: process.env.PGPASSWORD || '',
-  database,
-});
 
 /**
  * Ensure the application database exists, then apply pending migrations and
  * seed demo data when empty. Safe (idempotent) to run on every server start.
+ *
+ * Both clients below are built from the single DATABASE_URL link: the
+ * maintenance client points at `postgres` (to CREATE DATABASE), the app
+ * client at the database named inside the link.
  */
 export async function ensureDatabase(): Promise<void> {
-  const dbName = process.env.PGDATABASE || 'gabfix';
+  const dbName = databaseName;
 
   // 1. Create the database itself if it does not exist (requires the admin DB).
-  const admin = new Client(connection('postgres'));
+  const admin = new Client({ connectionString: adminDatabaseLink });
   await admin.connect();
   const exists = await admin.query(`SELECT 1 FROM pg_database WHERE datname = $1`, [dbName]);
   if (exists.rowCount === 0) {
@@ -31,7 +28,7 @@ export async function ensureDatabase(): Promise<void> {
   await admin.end();
 
   // 2. Apply the schema and seed data to the application database.
-  const client = new Client(connection(dbName));
+  const client = new Client({ connectionString: databaseUrl });
   await client.connect();
 
   // Some PostgreSQL installs ship with search_path="$user" only, which breaks

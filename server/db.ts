@@ -1,19 +1,12 @@
 import 'dotenv/config';
 import { Pool } from 'pg';
+import { databaseUrl } from './db-config';
 
-// When PGHOST is "localhost" the OS resolver can hand back ::1 (IPv6) or
-// 127.0.0.1 (IPv4) and pg's native client has been observed to stall on the
-// wrong family on Windows, producing "timeout exceeded when trying to connect".
-// Pin to 127.0.0.1 (Postgres listens on *, so this always works) unless the
-// env explicitly sets something else.
-const host = process.env.PGHOST === 'localhost' ? '127.0.0.1' : (process.env.PGHOST || 'localhost');
-
+// All credential pieces (host, port, user, password, database) come from the
+// single link exported by db-config.ts — see the `localhost` → `127.0.0.1`
+// normalisation note there (Windows dual-stack resolver stall).
 export const pool = new Pool({
-  host,
-  port: Number(process.env.PGPORT) || 5432,
-  user: process.env.PGUSER || 'postgres',
-  password: process.env.PGPASSWORD || '',
-  database: process.env.PGDATABASE || 'gabfix',
+  connectionString: databaseUrl,
   // Ensure unqualified table names always resolve to the public schema.
   options: '-c search_path=public',
   // Self-heal the pool: when PostgreSQL briefly drops/restarts, dead
