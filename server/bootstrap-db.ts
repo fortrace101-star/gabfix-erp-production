@@ -39,6 +39,12 @@ export async function ensureDatabase(): Promise<void> {
   const applied = await migrate(client);
   if (applied.length) console.log(`[db] Migrations applied: ${applied.join(', ')}`);
 
+  // Identity is independent of demo data: ensure the owner and demo staff exist
+  // FIRST so that seedData (which inserts job_assignments referencing those
+  // employee UUIDs) does not violate the employee FK constraint.
+  await ensureOwner(client);
+  await ensureStaff(client);
+
   const { rows } = await client.query(`SELECT COUNT(*)::int AS count FROM customers`);
   if (rows[0].count > 0) {
     console.log('[db] Data already present, skipping seed');
@@ -46,12 +52,6 @@ export async function ensureDatabase(): Promise<void> {
     await seedData(client);
     console.log('[db] Seed data inserted');
   }
-
-  // Identity is independent of demo data: databases seeded before Phase 0.4
-  // still need their owner employee, and the four apps need demo staff to log
-  // in with (plan v5 Phase C/D/E).
-    await ensureOwner(client);
-  await ensureStaff(client);
 
   // Portal demo dataset (plan v5 Phase B) — idempotent demo jobs/crew/timecards
   // and cost lines that used to be client fixtures. Runs after ensureStaff so the
