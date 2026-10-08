@@ -34,7 +34,7 @@ export async function ensureDatabase(): Promise<void> {
   // Some PostgreSQL installs ship with search_path="$user" only, which breaks
   // unqualified CREATE TABLE / SELECT statements. Force the public schema.
   await client.query(`ALTER DATABASE ${JSON.stringify(dbName)} SET search_path TO public`);
-  await client.query('SET search_path TO public');
+  await client.query('SET search_path TO public ');
 
   const applied = await migrate(client);
   if (applied.length) console.log(`[db] Migrations applied: ${applied.join(', ')}`);
