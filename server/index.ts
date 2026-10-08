@@ -47,7 +47,7 @@ import webpush from 'web-push';
 // Multi-app CORS (multi-app-plan §10.3): the four Vercel apps plus local dev
 // ports 5173–5179. Vite serves on IPv6 localhost in dev, hence the ::1 forms.
 const ALLOWED_ORIGINS = [
-  'https://gabfix-administrator.vercel.app',
+  'https://gabfix-erp-production-six.vercel.app',
   'https://gabfix-laundry-front-office.vercel.app',
   'https://gabfix-inhouse-erp.vercel.app',
   'https://gabfix-store.vercel.app',
