@@ -1,0 +1,1 @@
+{ "version": 2, "builds": [ { "src": "gabfix-inhouse-erp/package.json", "use": "@vercel/static-build", "config": { "distDir": "gabfix-inhouse-erp/dist" } } ], "routes": [ { "src": "/(.*)", "dest": "gabfix-inhouse-erp/dist/$1" } ] }
