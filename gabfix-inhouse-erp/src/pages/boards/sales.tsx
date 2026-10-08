@@ -16,6 +16,7 @@ import {
   type Lead,
   type LeadStage,
 } from "@/lib/crm";
+import { JOB_PRIORITIES, createProposal, type JobPriority } from "@/lib/orders";
 import { addDays, kampalaDayKey, weekDays } from "@/lib/timesheet";
 import { KpiStrip, money } from "./shared";
 import { InteractionModal, ScheduleFollowUpModal } from "./crm-modals";
@@ -204,6 +205,175 @@ export function LeadModal({
           </Button>
           <Button type="submit" disabled={saving}>
             {saving ? "Adding…" : "Add to workflow"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * New order proposal — the sales role's entry into the order lifecycle
+ * (plan P1). POST /api/orders/proposals creates a `Proposed` job; a manager
+ * confirms it after phone verification, so the salesperson only picks the
+ * client, service, day and an indicative price.
+ */
+export function ProposeOrderModal({
+  open,
+  onClose,
+  onSaved,
+  customers,
+  services,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+  customers: Array<{ id: string; name: string }>;
+  services: Array<{ id: string; name: string }>;
+}) {
+  const [customerId, setCustomerId] = useState("");
+  const [serviceId, setServiceId] = useState("");
+  const [date, setDate] = useState("");
+  const [revenue, setRevenue] = useState("");
+  const [priority, setPriority] = useState<JobPriority>("Normal");
+  const [siteAddress, setSiteAddress] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState("");
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!customerId) {
+      setFailure("Pick the client this proposal is for.");
+      return;
+    }
+    if (!serviceId) {
+      setFailure("Pick the service you are proposing.");
+      return;
+    }
+    if (!date) {
+      setFailure("Choose the proposed service date.");
+      return;
+    }
+    setSaving(true);
+    setFailure("");
+    try {
+      const created = await createProposal({
+        customerId,
+        serviceId,
+        date,
+        revenue: revenue ? Number(revenue) : undefined,
+        priority,
+        siteAddress: siteAddress.trim() || undefined,
+        source: "salesperson",
+      });
+      toast.success(`Proposal ${created.number} created`);
+      setCustomerId("");
+      setServiceId("");
+      setDate("");
+      setRevenue("");
+      setSiteAddress("");
+      onSaved();
+      onClose();
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : "Could not create the proposal");
+    } finally {
+      setSaving(false);
+    }
+  };
+  if (!open) return null;
+  return (
+    <Modal
+      open
+      title="New proposal"
+      description="A manager confirms it after phone verification — price and day can firm up later"
+      onClose={onClose}
+      size="lg"
+    >
+      <form onSubmit={submit} className="modal-form">
+        <div className="field-row">
+          <Field label="Client">
+            <select
+              className="field"
+              required
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+            >
+              <option value="">
+                {customers.length ? "Select a client" : "No clients yet — add one first"}
+              </option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Service">
+            <select
+              className="field"
+              required
+              value={serviceId}
+              onChange={(e) => setServiceId(e.target.value)}
+            >
+              <option value="">
+                {services.length ? "Select a service" : "No services configured yet"}
+              </option>
+              {services.map((service) => (
+                <option key={service.id} value={service.id}>
+                  {service.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+        <div className="field-row">
+          <Field label="Proposed date">
+            <input
+              className="field"
+              type="date"
+              required
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+          <Field label="Estimated value (UGX)" hint="Optional — firm up after the survey">
+            <input
+              className="field"
+              type="number"
+              min="0"
+              value={revenue}
+              onChange={(e) => setRevenue(e.target.value)}
+            />
+          </Field>
+        </div>
+        <div className="field-row">
+          <Field label="Priority">
+            <select
+              className="field"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as JobPriority)}
+            >
+              {JOB_PRIORITIES.map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Site address" hint="Optional — where the work happens">
+            <input
+              className="field"
+              value={siteAddress}
+              onChange={(e) => setSiteAddress(e.target.value)}
+              placeholder="Kololo, Kampala"
+            />
+          </Field>
+        </div>
+        {failure ? <p className="ts-error">{failure}</p> : null}
+        <div className="modal-foot">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={saving || !customers.length || !services.length}>
+            {saving ? "Creating…" : "Propose order"}
           </Button>
         </div>
       </form>

@@ -35,6 +35,7 @@ import {
   Filter,
   Eye,
   EyeOff,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
@@ -46,9 +47,10 @@ import { JobChecklistPanel } from "@/components/JobChecklistPanel";
 import { ConcernsInbox } from "@/components/ConcernsInbox";
 import { ConcernForm } from "@/components/ConcernForm";
 import { checklistGate } from "@/lib/gating";
-import { LeadModal } from "@/pages/boards/sales";
+import { LeadModal, ProposeOrderModal } from "@/pages/boards/sales";
 import { InteractionModal, ScheduleFollowUpModal } from "@/pages/boards/crm-modals";
 import { LEAD_STAGES, updateFollowUp, updateLead } from "@/lib/crm";
+import { absoluteShareUrl, shareProposal } from "@/lib/orders";
 import { toast as sonner } from "sonner";
 
 const LOGO_SRC = "/gabfix-logo.png";
@@ -74,6 +76,7 @@ const navigation: Record<Role, { label: string; icon: typeof LayoutDashboard }[]
   Sales: [
     { label: "Overview", icon: LayoutDashboard },
     { label: "Leads", icon: Target },
+    { label: "Proposals", icon: FileText },
     { label: "Follow-ups", icon: ClipboardCheck },
   ],
   Supervisor: [
@@ -211,6 +214,15 @@ export default function Portal() {
   const followUps = feed?.followUps ?? [];
   const feedback = feed?.feedback ?? [];
   const crew = feed?.crew ?? [];
+  // Order lifecycle (plan P1): orders still sitting in `Proposed` — awaiting a
+  // manager's phone-verified confirmation — plus the catalogue the proposal
+  // form picks from (both come from the same GET /api/data read).
+  const proposals = useMemo(
+    () => (feed?.jobs ?? []).filter((job) => job.status === "Proposed"),
+    [feed],
+  );
+  const customers = feed?.customers ?? [];
+  const services = feed?.services ?? [];
   // Only ever what this employee is actually associated with — no demo rows.
   useEffect(() => {
     setJobs((feed?.myJobs ?? []).map(fromLiveJob));
@@ -252,6 +264,7 @@ export default function Portal() {
   );
   const [raiseConcernOpen, setRaiseConcernOpen] = useState(false);
   const [leadOpen, setLeadOpen] = useState(false);
+  const [proposeOpen, setProposeOpen] = useState(false);
   const [scheduleLeadId, setScheduleLeadId] = useState<{ id: string; name: string } | null>(null);
   const [logLeadId, setLogLeadId] = useState<{ id: string; name: string } | null>(null);
   const [crmBusy, setCrmBusy] = useState("");
@@ -285,6 +298,29 @@ export default function Portal() {
       setCrmBusy("");
     }
   };
+  // Share a proposal: the server mints (or reuses) the token and stamps
+  // `share_sent_at`, then the link is copied for WhatsApp — the client never
+  // forges the URL, and re-sharing a thread keeps one stable link.
+  const shareProposalLink = async (job: PortalJob) => {
+    setCrmBusy(job.id);
+    try {
+      const { shareUrl } = await shareProposal(job.id);
+      const url = absoluteShareUrl(shareUrl);
+      try {
+        await navigator.clipboard.writeText(url);
+        sonner.success(`Share link for ${job.number} copied`);
+      } catch {
+        // Insecure context (no clipboard API): open it so it can be copied by hand.
+        window.open(url, "_blank", "noopener");
+        sonner.success(`Share link for ${job.number} opened`);
+      }
+      reload();
+    } catch (err) {
+      sonner.error(err instanceof Error ? err.message : "Could not share the proposal");
+    } finally {
+      setCrmBusy("");
+    }
+  };
   // Lifecycle transitions go through the server (PATCH /api/jobs/:id/status), so
   // the list always reflects the job's real state.
   const setStatus = async (job: Job, status: "In Progress" | "Completed") => {
@@ -300,10 +336,17 @@ export default function Portal() {
       setSaving(false);
     }
   };
+  // Work still on the technician's plate — finished jobs drop out of this set
+  // the moment they are completed, so every "assigned" surface (list, badge,
+  // dashboard) stops showing them.
+  const openJobs = useMemo(() => jobs.filter((job) => job.status !== "Completed"), [jobs]);
   const filteredJobs = useMemo(
     () =>
       jobs.filter(
         (job) =>
+          // Finished work leaves the assigned list as soon as it is completed;
+          // it stays reachable only through the explicit "Completed" segment.
+          (filter === "Completed" || job.status !== "Completed") &&
           (filter === "All" || job.status === filter) &&
           `${job.title} ${job.customer} ${job.id} ${job.place}`
             .toLowerCase()
@@ -346,6 +389,7 @@ export default function Portal() {
   const isLeadView = active === "Leads" || active === "Follow-ups";
   const isTicketView = active === "Team" || active === "Feedback";
   const isConcernsView = active === "Concerns";
+  const isProposalView = active === "Proposals";
   const openItem = (job: Job) => {
     setSelected(job);
   };
@@ -354,7 +398,7 @@ export default function Portal() {
     (item) => !["done", "completed"].includes(item.status.toLowerCase()),
   );
   const metrics = useMemo(() => {
-    const open = jobs.filter((job) => job.status !== "Completed");
+    const open = openJobs;
     const pipeline = leads.reduce((sum, lead) => sum + (lead.value ?? 0), 0);
     const assigned = crew.reduce((sum, member) => sum + member.assigned, 0);
     const rating = feedback.length
@@ -364,8 +408,8 @@ export default function Portal() {
       return [
         {
           label: "Jobs assigned",
-          value: String(jobs.length),
-          detail: `${open.length} still open`,
+          value: String(open.length),
+          detail: `${jobs.length - open.length} completed`,
           icon: BriefcaseBusiness,
           tone: "lime",
         },
@@ -385,8 +429,8 @@ export default function Portal() {
         },
         {
           label: "Next job",
-          value: jobs[0]?.time ?? "—",
-          detail: jobs[0]?.customer ?? "Nothing scheduled",
+          value: openJobs[0]?.time ?? "—",
+          detail: openJobs[0]?.customer ?? "Nothing scheduled",
           icon: CalendarDays,
           tone: "peach",
         },
@@ -486,7 +530,7 @@ export default function Portal() {
         tone: "peach",
       },
     ];
-  }, [role, jobs, leads, followUps, feedback, crew]);
+  }, [role, jobs, openJobs, leads, followUps, feedback, crew]);
   const activities = useMemo(
     () =>
       jobs.slice(0, 4).map((job) => ({
@@ -560,6 +604,51 @@ export default function Portal() {
       action: () => navTo("Feedback"),
     };
   }, [role, jobs, leads, openFollowUps, crew, feedback]);
+  // Proposed orders (sales role): the same row language as the job list, with
+  // Share as the only action — confirming needs a manager's capability.
+  const proposalList = () => (
+    <div className="job-list">
+      {proposals.map((job) => (
+        <div className="job-row" key={job.id}>
+          <div className="job-time">
+            <span className="time-icon">
+              <Clock3 size={17} />
+            </span>
+            <span>{formatJobDay(job.date)}</span>
+          </div>
+          <div className="job-info">
+            <div className="job-title-line">
+              <strong>
+                {job.number} · {job.service}
+              </strong>
+            </div>
+            <span>
+              {job.customer}
+              <span className="dot-separator">·</span>
+              {job.revenue ? `UGX ${job.revenue.toLocaleString()}` : "Price on survey"}
+            </span>
+          </div>
+          <span className="status proposed">
+            <span className="status-dot" />
+            Proposed
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={crmBusy === job.id}
+            onClick={() => shareProposalLink(job)}
+          >
+            <Share2 size={15} /> {crmBusy === job.id ? "Sharing…" : "Share"}
+          </Button>
+        </div>
+      ))}
+      {proposals.length === 0 && (
+        <div className="empty">
+          No proposals yet — raise your first order proposal and a manager will confirm it.
+        </div>
+      )}
+    </div>
+  );
   const jobList = (limit?: number) => (
     <div className="job-list">
       {(limit ? filteredJobs.slice(0, limit) : filteredJobs).map((job) => (
@@ -598,7 +687,15 @@ export default function Portal() {
           </Button>
         </div>
       ))}
-      {filteredJobs.length === 0 && <div className="empty">No jobs are assigned to you yet.</div>}
+      {filteredJobs.length === 0 && (
+        <div className="empty">
+          {filter === "Completed"
+            ? "No completed jobs yet."
+            : filter === "All"
+              ? "No jobs are assigned to you yet."
+              : `No ${filter.toLowerCase()} jobs right now.`}
+        </div>
+      )}
     </div>
   );
 
@@ -875,7 +972,14 @@ export default function Portal() {
         <div className="workspace-label">WORKSPACE</div>
         <nav className="nav-list" aria-label="Main navigation">
           {navigation[role].map(({ label, icon: Icon }) => {
-            const count = label === "My jobs" ? jobs.length : 0;
+            // Assigned list excludes finished work (see filteredJobs), so the
+            // sidebar badge counts open jobs only.
+            const count =
+              label === "My jobs"
+                ? openJobs.length
+                : label === "Proposals"
+                  ? proposals.length
+                  : 0;
             return (
               <Button
                 key={label}
@@ -1011,6 +1115,11 @@ export default function Portal() {
                 <CalendarDays size={16} />
                 {dateLabel}
               </span>
+              {role === "Sales" && !isProposalView && (
+                <Button variant="outline" onClick={() => setProposeOpen(true)}>
+                  <Plus size={17} /> New proposal
+                </Button>
+              )}
               {isDashboard && (
                 <Button className="action-button" onClick={doPrimary}>
                   {role === "Technician" ? <ArrowUpRight size={17} /> : <Plus size={18} />}{" "}
@@ -1320,6 +1429,25 @@ export default function Portal() {
                   </section>
                 </>
               )}
+              {isProposalView && (
+                <>
+                  <div className="toolbar">
+                    <span className="results-count">{proposals.length} proposals</span>
+                    <Button size="sm" onClick={() => setProposeOpen(true)}>
+                      <Plus size={16} /> New proposal
+                    </Button>
+                  </div>
+                  <section className="surface listing-surface">
+                    <div className="surface-head">
+                      <div>
+                        <p className="eyebrow">ORDER PIPELINE</p>
+                        <h2>Proposals awaiting confirmation</h2>
+                      </div>
+                    </div>
+                    {proposalList()}
+                  </section>
+                </>
+              )}
               {isTicketView && (
                 <>
                   <div className="toolbar">
@@ -1342,7 +1470,11 @@ export default function Portal() {
                   </section>
                 </>
               )}
-              {!isJobView && !isLeadView && !isTicketView && !isConcernsView && (
+              {!isJobView &&
+                !isLeadView &&
+                !isTicketView &&
+                !isConcernsView &&
+                !isProposalView && (
                 <section className="surface listing-surface">
                   <div className="surface-head">
                     <div>
@@ -1533,6 +1665,13 @@ export default function Portal() {
             open={leadOpen}
             onClose={() => setLeadOpen(false)}
             onSaved={() => reload()}
+          />
+          <ProposeOrderModal
+            open={proposeOpen}
+            onClose={() => setProposeOpen(false)}
+            onSaved={() => reload()}
+            customers={customers}
+            services={services}
           />
           <ScheduleFollowUpModal
             open={scheduleLeadId !== null}

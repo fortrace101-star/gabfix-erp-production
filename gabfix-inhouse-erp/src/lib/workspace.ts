@@ -88,6 +88,9 @@ export type EmployeeFeed = {
   followUps: PortalFollowUp[];
   feedback: PortalFeedback[];
   crew: PortalCrewMember[];
+  /** Catalogue pickers (proposal form): ids the server's FKs expect. */
+  customers: Array<{ id: string; name: string }>;
+  services: Array<{ id: string; name: string }>;
 };
 
 type LeadRow = {
@@ -238,7 +241,16 @@ export function useEmployeeWorkspace(
           };
         });
 
-        setFeed({ jobs, myJobs: jobs.filter((job) => job.mine), leads, followUps, feedback, crew });
+        setFeed({
+          jobs,
+          myJobs: jobs.filter((job) => job.mine),
+          leads,
+          followUps,
+          feedback,
+          crew,
+          customers: ws.customers,
+          services: ws.services,
+        });
       })
       .catch((e: unknown) => {
         if (alive) setError(e instanceof Error ? e.message : 'Failed to load your workspace');

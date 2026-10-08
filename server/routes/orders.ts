@@ -378,8 +378,9 @@ ordersRouter.post('/proposals', requireCapability('create_proposals'), async (re
       number = await nextNumber(client, 'job');
       const { rows } = await client.query(
         `INSERT INTO jobs (id, number, customer_id, service_id, date, status, priority,
-                           revenue, site_address, source, proposed_by, salesperson_id)
-         VALUES ($1, $2, $3, $4, $5, 'Proposed', COALESCE($6, 'Normal'), COALESCE($7, 0), $8, $9, $10, $11)
+                           revenue, site_address, source, proposed_by, salesperson_id,
+                           scheduled_date)
+         VALUES ($1, $2, $3, $4, $5, 'Proposed', COALESCE($6, 'Normal'), COALESCE($7, 0), $8, $9, $10, $11, $5)
          RETURNING id, number`,
         [
           id,
