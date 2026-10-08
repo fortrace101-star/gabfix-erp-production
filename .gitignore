@@ -10,6 +10,10 @@ node_modules
 dist
 dist-ssr
 *.local
+gabfix-administrator\node_modules
+gabfix-inhouse-erp\node_modules
+gabfix-laundry-front-office\node_modules
+gabfix-store\node_modules
 
 .vscode/*
 !.vscode/extensions.json
