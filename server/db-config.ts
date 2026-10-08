@@ -49,6 +49,14 @@ function normalise(link: string): URL {
   if (url.hostname === 'localhost') url.hostname = '127.0.0.1';
 
   if (!url.pathname || url.pathname === '/') url.pathname = `/${DEFAULT_DATABASE}`;
+
+  // Render's managed PostgreSQL (and most cloud PG hosts) requires SSL/TLS.
+  // Ensure the connection string includes the sslmode=require query parameter
+  // so that the server accepts the connection. Append after any existing
+  // query params to avoid clobbering them.
+  if (!url.searchParams.has('sslmode')) {
+    url.searchParams.set('sslmode', 'require');
+  }
   return url;
 }
 

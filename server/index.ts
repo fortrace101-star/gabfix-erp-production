@@ -252,7 +252,7 @@ async function main() {
     process.exit(1);
   }
 
-  app.listen(port, () => {
+  app.listen(port,'0.0.0.0',() => {
     console.log(`Gabfix API listening on http://localhost:${port}`);
   });
 }
